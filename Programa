@@ -1,0 +1,157 @@
+// App.js
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, Button, FlatList, Alert, StyleSheet } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const App = () => {
+  const [name, setName] = useState('');        // Nome do produto
+  const [quantity, setQuantity] = useState('');  // Quantidade do produto
+  const [products, setProducts] = useState([]);  // Lista de produtos carregados do AsyncStorage
+
+  // Carregar os produtos do AsyncStorage
+  useEffect(() => {
+    const loadProducts = async () => {
+      const storedProducts = await AsyncStorage.getItem('products');
+      if (storedProducts) {
+        setProducts(JSON.parse(storedProducts));
+      }
+    };
+    loadProducts();
+  }, []);
+
+  // Função para adicionar um produto ou atualizar a quantidade
+  const addProduct = async () => {
+    if (!name || !quantity) {
+      Alert.alert('Erro', 'Por favor, preencha todos os campos');
+      return;
+    }
+
+    const newQuantity = parseInt(quantity);
+
+    // Verificar se o produto já existe
+    const existingProductIndex = products.findIndex((item) => item.name === name);
+
+    if (existingProductIndex !== -1) {
+      // Se o produto já existir, atualizar a quantidade
+      const updatedProducts = [...products];
+      updatedProducts[existingProductIndex].quantity += newQuantity;
+      await AsyncStorage.setItem('products', JSON.stringify(updatedProducts));
+      setProducts(updatedProducts);
+      Alert.alert('Estoque Atualizado', `Quantidade de ${name} aumentada.`);
+    } else {
+      // Se o produto não existir, criar um novo produto
+      const newProduct = {
+        id: Date.now(),  // ID único baseado no timestamp
+        name,
+        quantity: newQuantity,
+      };
+
+      const updatedProducts = [...products, newProduct];
+      await AsyncStorage.setItem('products', JSON.stringify(updatedProducts));
+      setProducts(updatedProducts);
+      Alert.alert('Produto Adicionado', 'Novo produto foi adicionado ao estoque!');
+    }
+
+    // Limpar os campos
+    setName('');
+    setQuantity('');
+  };
+
+  // Função para remover quantidade de um produto
+  const removeProduct = async (id, quantityToRemove) => {
+    const updatedProducts = [...products];
+    const productIndex = updatedProducts.findIndex((product) => product.id === id);
+
+    if (productIndex !== -1) {
+      if (updatedProducts[productIndex].quantity >= quantityToRemove) {
+        updatedProducts[productIndex].quantity -= quantityToRemove;
+        if (updatedProducts[productIndex].quantity === 0) {
+          // Se a quantidade chegar a 0, removemos o produto
+          updatedProducts.splice(productIndex, 1);
+        }
+        await AsyncStorage.setItem('products', JSON.stringify(updatedProducts));
+        setProducts(updatedProducts);
+        Alert.alert('Estoque Atualizado', `Quantidade de ${updatedProducts[productIndex].name} reduzida.`);
+      } else {
+        Alert.alert('Erro', 'Quantidade para remoção é maior que o estoque disponível.');
+      }
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>Controle de Estoque</Text>
+
+      <TextInput
+        style={styles.input}
+        placeholder="Nome do Produto"
+        value={name}
+        onChangeText={setName}
+      />
+      <TextInput
+        style={styles.input}
+        placeholder="Quantidade"
+        value={quantity}
+        keyboardType="numeric"
+        onChangeText={setQuantity}
+      />
+      
+      <Button title="Adicionar ou Atualizar Produto" onPress={addProduct} />
+
+      <FlatList
+        data={products}
+        keyExtractor={(item) => item.id.toString()}
+        renderItem={({ item }) => (
+          <View style={styles.productItem}>
+            <Text>{item.name} - Quantidade: {item.quantity}</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Quantidade para Remover"
+              keyboardType="numeric"
+              onChangeText={(value) => {
+                if (value) {
+                  const quantityToRemove = parseInt(value);
+                  removeProduct(item.id, quantityToRemove);
+                }
+              }}
+            />
+          </View>
+        )}
+        ListEmptyComponent={<Text style={styles.empty}>Nenhum produto cadastrado.</Text>}
+      />
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 20,
+    backgroundColor: '#fff',
+  },
+  title: {
+    fontSize: 24,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  input: {
+    height: 40,
+    borderColor: 'gray',
+    borderWidth: 1,
+    marginBottom: 10,
+    paddingLeft: 8,
+  },
+  productItem: {
+    padding: 10,
+    marginVertical: 5,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  empty: {
+    textAlign: 'center',
+    color: 'gray',
+    marginTop: 20,
+  },
+});
+
+export default App;
